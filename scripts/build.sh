@@ -14,9 +14,11 @@ IDENTITY="${HEADWAY_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>
 APP=build/Headway.app
 DEST="$HOME/Applications/Headway.app"
 
-swift build -c release 2>&1 | grep -vE "^\[|^Building|^Compiling|^Write" || true
+if ! swift build -c release > .build/last-build.log 2>&1; then
+  grep -E "error|warning: unre" .build/last-build.log | head -20
+  echo "build failed — nothing installed"; exit 1
+fi
 BIN="$(swift build -c release --show-bin-path)/Headway"
-[[ -x $BIN ]] || { echo "build failed"; exit 1; }
 
 scripts/bundle.sh "$BIN" "$APP" "$IDENTITY"
 

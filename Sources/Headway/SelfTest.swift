@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import HeadwayCore
 import SwiftUI
 
@@ -265,7 +266,14 @@ enum SelfTest {
             try? camera.start(deviceID: nil)
             DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
                 camera.stop()
-                handle.write(Data("{\"frames\":\(count),\"faces\":\(faces)}\n".utf8))
+                handle.write(Data("{\"frames\":\(count),\"faces\":\(faces),\"delivered\":\(camera.delivered)}\n".utf8))
+                let effects = "reactions=\(AVCaptureDevice.reactionEffectGesturesEnabled) portrait=\(AVCaptureDevice.isPortraitEffectEnabled) "
+                    + "studioLight=\(AVCaptureDevice.isStudioLightEnabled) centerStage=\(AVCaptureDevice.isCenterStageEnabled)"
+                handle.write(Data("{\"effects\":\"\(effects)\"}\n".utf8))
+                let c = camera.cpuBreakdown
+                let n = Double(max(c.frames, 1))
+                handle.write(Data(String(format: "{\"cpu_ms_per_frame\":{\"detect\":%.2f,\"landmarks\":%.2f,\"iris\":%.2f},\"devices\":\"%@\"}\n",
+                                         c.detect / n * 1000, c.landmarks / n * 1000, c.iris / n * 1000, camera.computeDevices).utf8))
                 try? handle.close()
                 exit(0)
             }

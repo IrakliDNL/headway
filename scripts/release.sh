@@ -7,7 +7,10 @@ set -euo pipefail
 cd "${0:A:h}/.."
 VERSION=$(/usr/libexec/PlistBuddy -c "Print CFBundleShortVersionString" Resources/Info.plist)
 
-swift build -c release --arch arm64 --arch x86_64 2>&1 | grep -vE "^\[|^Building|^Compiling|^Write" || true
+if ! swift build -c release --arch arm64 --arch x86_64 > .build/last-release.log 2>&1; then
+  grep -E "error" .build/last-release.log | head -20
+  echo "build failed"; exit 1
+fi
 BIN="$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/Headway"
 lipo -info "$BIN"
 

@@ -4,7 +4,7 @@ import Foundation
 /// Saved as JSON. Holds numbers about face pose only — never images.
 public struct CalibrationStore: Codable, Equatable, Sendable {
     /// Bumped whenever the face measurements change meaning; older calibrations can't be reused.
-    /// 2 = iris found in the pixels at 1080p (was Vision's pupil landmark at 720p).
+    /// 2 = iris found in the camera pixels (was Vision's pupil landmark).
     public static let currentVersion = 2
     public var version = CalibrationStore.currentVersion
     /// Screens as they were when calibrated, to notice when the arrangement changes.

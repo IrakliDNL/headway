@@ -98,7 +98,8 @@ swift build && .build/debug/Headway --windows     # screens and windows as Headw
 .build/debug/Headway --panes                 # pane scan of every open window, with timings
 .build/debug/Headway --evaluate              # how well the saved calibration aims, measured against your own clicks
 .build/debug/Headway --experiment            # compare aim-model variants against your clicks
-open ~/Applications/Headway.app --args --diagnose 10   # log 10 s of face numbers to ~/Library/Logs/Headway/
+open ~/Applications/Headway.app --args --diagnose 10   # log 10 s of face numbers + CPU per stage to ~/Library/Logs/Headway/
+open -n --env HEADWAY_PROCESS_FPS=5 ~/Applications/Headway.app --args --diagnose 10   # same, analysing 5 frames a second
 defaults write com.irakli.headway debugReadings -bool YES   # per-frame readings → ~/Library/Logs/Headway/readings.jsonl
 scripts/release.sh                           # universal, ad-hoc-signed zip for the Releases page
 ```
