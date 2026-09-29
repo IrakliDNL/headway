@@ -399,3 +399,55 @@ final class BezelTests: XCTestCase {
         XCTAssertGreaterThan(model.agreement(samples)!, 0.97)
     }
 }
+
+final class PupilTests: XCTestCase {
+    /// Draws an eye: grey skin, a white almond-shaped opening, a dark iris with a darker pupil.
+    func eyeImage(irisAt c: CGPoint, lashes: Bool = false) -> (pixels: [UInt8], outline: [CGPoint]) {
+        let w = 160, h = 80
+        let centre = CGPoint(x: 80, y: 40)
+        let outline = (0..<16).map { i -> CGPoint in
+            let a = Double(i) / 16 * 2 * .pi
+            return CGPoint(x: centre.x + 55 * cos(a), y: centre.y + 16 * sin(a))
+        }
+        var px = [UInt8](repeating: 130, count: w * h)
+        for y in 0..<h {
+            for x in 0..<w {
+                let p = CGPoint(x: Double(x) + 0.5, y: Double(y) + 0.5)
+                guard Pupil.contains(outline, p) else { continue }
+                let d = hypot(p.x - c.x, p.y - c.y)
+                px[y * w + x] = d < 6 ? 15 : d < 15 ? 70 : 225
+                // Dark lashes along the upper lid, which must not drag the answer far.
+                if lashes && p.y < centre.y - 13 { px[y * w + x] = 30 }
+            }
+        }
+        return (px, outline)
+    }
+
+    func locate(_ img: (pixels: [UInt8], outline: [CGPoint])) -> CGPoint? {
+        img.pixels.withUnsafeBufferPointer {
+            Pupil.locate(in: $0.baseAddress!, width: 160, height: 80, bytesPerRow: 160, outline: img.outline)
+        }
+    }
+
+    func testFindsTheIrisWhereverItIs() {
+        for x in [50.0, 80, 110] {
+            let p = locate(eyeImage(irisAt: CGPoint(x: x, y: 40)))!
+            XCTAssertEqual(p.x, x, accuracy: 1.5)
+            XCTAssertEqual(p.y, 40, accuracy: 1.5)
+        }
+    }
+
+    func testEyelashesBarelyShiftItSideways() {
+        let p = locate(eyeImage(irisAt: CGPoint(x: 100, y: 40), lashes: true))!
+        XCTAssertEqual(p.x, 100, accuracy: 4)
+    }
+
+    func testClosedEyeGivesNothing() {
+        let flat = [CGPoint(x: 20, y: 40), CGPoint(x: 140, y: 40), CGPoint(x: 80, y: 41)]
+        var px = [UInt8](repeating: 130, count: 160 * 80)
+        let r = px.withUnsafeMutableBufferPointer {
+            Pupil.locate(in: UnsafePointer($0.baseAddress!), width: 160, height: 80, bytesPerRow: 160, outline: flat)
+        }
+        XCTAssertNil(r)
+    }
+}

@@ -227,6 +227,8 @@ final class Coordinator: ObservableObject {
         accuracy.reset()
         saveStore()
         rebuildModel()
+        // Having just calibrated, you want it running.
+        if paused { setPaused(false) }
         Log.event("calibrated \(results.map { "\($0.0.name)=\($0.1.count)" }.joined(separator: " "))")
     }
 

@@ -112,6 +112,16 @@ enum SelfTest {
         cal.moveDot(to: NSPoint(x: 0.94 * 1470, y: 0.94 * 956), over: 0)
         cal.progress = 0.6
         snap(cal, "calibration-dot")
+        cal.overlay = "Now keep your head still and follow the dot with just your eyes."
+        cal.progress = nil
+        cal.moveDot(to: NSPoint(x: 735, y: 478), over: 0)
+        snap(cal, "calibration-eyes-intro")
+        cal.overlay = nil
+        cal.banner = "Eyes only — keep your head still"
+        cal.bannerWarning = true
+        cal.progress = 0.4
+        cal.moveDot(to: NSPoint(x: 0.85 * 1470, y: 0.8 * 956), over: 0)
+        snap(cal, "calibration-eyes-warning")
     }
 
     /// How well does the saved calibration aim *within* each screen? Uses the user's real clicks as ground
@@ -159,6 +169,21 @@ enum SelfTest {
                 cv.append((p[0], p[1], c.u, c.v))
             }
             report("with click learning", cv, screen)
+
+            // How much of the left→right aim the model credits to the eyes (vs the head).
+            let data = cal + clicks
+            if let r = RidgeRegression.fit(x: data.map { Features.point($0.face) }, y: data.map { [$0.u] },
+                                           weights: data.map { $0.source == .click ? 2 : 1 }, lambda: 0.02) {
+                let left = cal.filter { $0.u < 0.3 }.map { Features.point($0.face) }
+                let right = cal.filter { $0.u > 0.7 }.map { Features.point($0.face) }
+                if !left.isEmpty && !right.isEmpty {
+                    func mean(_ rows: [[Double]], _ j: Int) -> Double { rows.map { $0[j] }.reduce(0, +) / Double(rows.count) }
+                    let part = (0..<6).map { j in r.coefficients[0][j] / r.standardizer.scale[j] * (mean(right, j) - mean(left, j)) }
+                    let head = part[0..<4].reduce(0, +), eyes = part[4..<6].reduce(0, +)
+                    print(String(format: "  eyes' share of the aim: %.0f%% (head %.2f, eyes %.2f of the screen width)",
+                                 eyes / (head + eyes) * 100, head, eyes))
+                }
+            }
         }
     }
 
@@ -213,11 +238,20 @@ enum SelfTest {
         var count = 0, faces = 0
         let encoder = JSONEncoder()
         camera.onSample = { s in
+            // Read on the camera queue, right after the frame that produced `s`.
+            let vision = camera.lastVisionEye
             DispatchQueue.main.async {
                 count += 1
                 if let s {
                     faces += 1
-                    if let d = try? encoder.encode(s) { handle.write(d + Data("\n".utf8)) }
+                    if var d = try? encoder.encode(s) {
+                        if let vision {
+                            // Append Vision's own pupil estimate for comparison.
+                            d.removeLast()
+                            d += Data(",\"visionEyeX\":\(vision.x),\"visionEyeY\":\(vision.y)}".utf8)
+                        }
+                        handle.write(d + Data("\n".utf8))
+                    }
                 } else {
                     handle.write(Data("null\n".utf8))
                 }

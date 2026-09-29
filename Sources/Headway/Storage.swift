@@ -24,6 +24,13 @@ enum Storage {
     static func loadStore() -> CalibrationStore {
         guard let data = try? Data(contentsOf: storeURL),
               let store = try? JSONDecoder().decode(CalibrationStore.self, from: data) else { return CalibrationStore() }
+        guard store.version >= CalibrationStore.currentVersion else {
+            // Measured differently: keep a copy, but start over.
+            try? FileManager.default.removeItem(at: storeURL.appendingPathExtension("v\(store.version)"))
+            try? FileManager.default.copyItem(at: storeURL, to: storeURL.appendingPathExtension("v\(store.version)"))
+            Log.event("calibration from version \(store.version) uses older eye measurements — recalibration needed")
+            return CalibrationStore()
+        }
         return store
     }
 

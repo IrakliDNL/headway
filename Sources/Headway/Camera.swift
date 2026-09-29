@@ -4,7 +4,8 @@ import HeadwayCore
 import QuartzCore
 import Vision
 
-/// Runs the webcam at 720p, at most 15 frames a second, and hands each frame to the face analyzer.
+/// Runs the webcam at 1080p (for enough pixels across each eye), at most 15 frames a second, and hands
+/// each frame to the face analyzer.
 /// Frames live only in memory for the few milliseconds analysis takes.
 final class CameraService: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     static let maxFPS = 15.0
@@ -15,6 +16,8 @@ final class CameraService: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
     private let session = AVCaptureSession()
     private let queue = DispatchQueue(label: "headway.camera")
     private let analyzer = FaceAnalyzer()
+    /// Vision's pupil estimate for the last analysed frame (camera queue only), for `--diagnose`.
+    var lastVisionEye: (x: Double, y: Double)? { analyzer.lastVisionEye }
     private var lastFrame = 0.0
     private(set) var isRunning = false
     private(set) var deviceName: String?
@@ -48,7 +51,11 @@ final class CameraService: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
         session.beginConfiguration()
         for input in session.inputs { session.removeInput(input) }
         for output in session.outputs { session.removeOutput(output) }
-        if session.canSetSessionPreset(.hd1280x720) { session.sessionPreset = .hd1280x720 }
+        if session.canSetSessionPreset(.hd1920x1080) {
+            session.sessionPreset = .hd1920x1080
+        } else if session.canSetSessionPreset(.hd1280x720) {
+            session.sessionPreset = .hd1280x720
+        }
         guard let input = try? AVCaptureDeviceInput(device: device), session.canAddInput(input) else {
             session.commitConfiguration()
             throw Failure.cannotConfigure
@@ -99,6 +106,8 @@ final class CameraService: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 final class FaceAnalyzer {
     private let rectangles = VNDetectFaceRectanglesRequest()
     private let landmarks = VNDetectFaceLandmarksRequest()
+    /// Vision's own pupil estimate from the last frame, kept only for `--diagnose` comparisons.
+    private(set) var lastVisionEye: (x: Double, y: Double)?
 
     init() {
         rectangles.revision = VNDetectFaceRectanglesRequestRevision3
@@ -123,6 +132,13 @@ final class FaceAnalyzer {
         var leftPupil = pts(lm.leftPupil)
         var rightPupil = pts(lm.rightPupil)
         guard contour.count >= 3, !nose.isEmpty, !leftEye.isEmpty, !rightEye.isEmpty else { return nil }
+        let visionPupils = (leftPupil, rightPupil)
+
+        // Find each iris in the pixels ourselves; Vision's pupil landmark barely moves when only the eyes do.
+        if let (l, r) = irisCentres(buffer, size: size, leftEye: leftEye, rightEye: rightEye) {
+            if let l { leftPupil = [l] }
+            if let r { rightPupil = [r] }
+        }
 
         // Undo sideways head tilt so the geometry below only sees turn and nod.
         let le = centroid(leftEye), re = centroid(rightEye)
@@ -149,6 +165,17 @@ final class FaceAnalyzer {
         let eyes = [eyeOffset(leftEye, leftPupil), eyeOffset(rightEye, rightPupil)].compactMap { $0 }
         let eyeX = eyes.isEmpty ? 0 : eyes.map(\.0).reduce(0, +) / Double(eyes.count)
         let eyeY = eyes.isEmpty ? 0 : eyes.map(\.1).reduce(0, +) / Double(eyes.count)
+        var vl = visionPupils.0, vr = visionPupils.1
+        unrotate(&vl); unrotate(&vr)
+        let vEyes = [eyeOffset(leftEye, vl), eyeOffset(rightEye, vr)].compactMap { $0 }
+        if vEyes.isEmpty {
+            lastVisionEye = nil
+        } else {
+            let n = Double(vEyes.count)
+            let vx: Double = vEyes.map(\.0).reduce(0, +) / n
+            let vy: Double = vEyes.map(\.1).reduce(0, +) / n
+            lastVisionEye = (vx, vy)
+        }
 
         return FaceSample(
             t: t,
@@ -164,6 +191,23 @@ final class FaceAnalyzer {
             eyeY: eyeY,
             confidence: Double(face.confidence)
         )
+    }
+
+    /// Iris centres in Vision's image coordinates (origin bottom-left), measured on the luma plane.
+    private func irisCentres(_ buffer: CVPixelBuffer, size: CGSize, leftEye: [CGPoint], rightEye: [CGPoint])
+        -> (CGPoint?, CGPoint?)? {
+        guard CVPixelBufferGetPlaneCount(buffer) >= 1 else { return nil }
+        CVPixelBufferLockBaseAddress(buffer, .readOnly)
+        defer { CVPixelBufferUnlockBaseAddress(buffer, .readOnly) }
+        guard let raw = CVPixelBufferGetBaseAddressOfPlane(buffer, 0) else { return nil }
+        let base = UnsafePointer(raw.assumingMemoryBound(to: UInt8.self))
+        let w = CVPixelBufferGetWidthOfPlane(buffer, 0), h = CVPixelBufferGetHeightOfPlane(buffer, 0)
+        let stride = CVPixelBufferGetBytesPerRowOfPlane(buffer, 0)
+        let flip = { (p: CGPoint) in CGPoint(x: p.x, y: size.height - p.y) }
+        func find(_ eye: [CGPoint]) -> CGPoint? {
+            Pupil.locate(in: base, width: w, height: h, bytesPerRow: stride, outline: eye.map(flip)).map(flip)
+        }
+        return (find(leftEye), find(rightEye))
     }
 
     private func centroid(_ ps: [CGPoint]) -> CGPoint {

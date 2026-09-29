@@ -3,7 +3,10 @@ import Foundation
 /// Everything Headway has learned: the calibration dots plus a rolling window of clicks.
 /// Saved as JSON. Holds numbers about face pose only — never images.
 public struct CalibrationStore: Codable, Equatable, Sendable {
-    public var version = 1
+    /// Bumped whenever the face measurements change meaning; older calibrations can't be reused.
+    /// 2 = iris found in the pixels at 1080p (was Vision's pupil landmark at 720p).
+    public static let currentVersion = 2
+    public var version = CalibrationStore.currentVersion
     /// Screens as they were when calibrated, to notice when the arrangement changes.
     public var screens: [ScreenGeometry] = []
     public var samples: [TrainingSample] = []
