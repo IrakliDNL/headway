@@ -59,6 +59,15 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Battery") {
+                Toggle("Battery saver", isOn: bind(\.batterySaver))
+                Text("Analyses 7.5 camera frames a second, and 5 once your head and eyes are still; back up the moment you move. About a third less energy; switches can come up to 0.2 s later.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Toggle("Turn the camera off when I'm away", isOn: bind(\.idlePause))
+                Text("After 5 minutes without keyboard or mouse. It comes back on at your next key or mouse touch — that first keystroke goes to the window that already had focus.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
             Section("Camera") {
                 Picker("Camera", selection: bind(\.cameraID)) {
                     Text("Built-in (default)").tag(String?.none)

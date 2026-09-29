@@ -451,3 +451,38 @@ final class PupilTests: XCTestCase {
         XCTAssertNil(r)
     }
 }
+
+final class BatteryTests: XCTestCase {
+    func testHalfSpeedWhileMovingAndSlowerWhenStill() {
+        var g = FrameGovernor()
+        var n = Noise()
+        var rates = [Int]()
+        for i in 0..<60 {  // 60 frames at 7.5 fps = 8 s of a still head with normal jitter
+            let s = FaceSample(t: Double(i) / 7.5, yaw: 0.1 + n.next() * 0.004, noseX: 0.02 + n.next() * 0.001,
+                               eyeX: n.next() * 0.004)
+            rates.append(g.everyNth(after: s, saver: true))
+        }
+        XCTAssertEqual(rates.first, 2)
+        XCTAssertEqual(rates.last, 3)
+        // A head turn brings it straight back to half speed.
+        XCTAssertEqual(g.everyNth(after: FaceSample(t: 8.2, yaw: 0.4, noseX: 0.08), saver: true), 2)
+    }
+
+    func testEyesAloneCountAsMovement() {
+        var g = FrameGovernor()
+        for i in 0..<30 { _ = g.everyNth(after: FaceSample(t: Double(i) / 7.5), saver: true) }
+        XCTAssertEqual(g.everyNth(after: FaceSample(t: 4.1), saver: true), 3)
+        XCTAssertEqual(g.everyNth(after: FaceSample(t: 4.2, eyeX: 0.08), saver: true), 2)
+    }
+
+    func testSaverOffAnalysesEveryFrame() {
+        var g = FrameGovernor()
+        XCTAssertEqual(g.everyNth(after: FaceSample(t: 0), saver: false), 1)
+    }
+
+    func testIdlePause() {
+        XCTAssertFalse(IdlePause.shouldRest(sinceKey: 299, sinceMouse: 1000, enabled: true))
+        XCTAssertTrue(IdlePause.shouldRest(sinceKey: 301, sinceMouse: 400, enabled: true))
+        XCTAssertFalse(IdlePause.shouldRest(sinceKey: 301, sinceMouse: 400, enabled: false))
+    }
+}

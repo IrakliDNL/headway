@@ -27,7 +27,7 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         let s = coordinator.status
         let symbol: String
         switch s {
-        case .paused, .asleep: symbol = "eye.slash"
+        case .paused, .asleep, .resting: symbol = "eye.slash"
         case .needsCamera, .needsAccessibility, .needsCalibration, .cameraProblem: symbol = "eye.trianglebadge.exclamationmark"
         default: symbol = coordinator.suggestRecalibration ? "eye.trianglebadge.exclamationmark" : "eye"
         }

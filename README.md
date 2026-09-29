@@ -15,6 +15,7 @@ With two or more screens, you look at one, start typing — and the keystrokes l
 - **Never fights you.** While you use the mouse or trackpad, and for 1.5 s after, nothing moves. While you type, a quick glance elsewhere never steals your keystrokes: another window or screen takes over only after you've looked at it for about a second, and split panes inside one app stay put until you stop typing. Clicking somewhere yourself cancels anything pending.
 - **Windows and panes on the same screen.** Look at another window (or another editor group / terminal split in Cursor, VS Code, Xcode, iTerm2…) and it gets focus. Browsers, chat and document apps are always treated as whole windows.
 - **Gets better as you work.** You look where you click, so each click fine-tunes the model to how you actually sit.
+- **Easy on the battery.** About 17–19% of one CPU core while tracking on an M4 MacBook Air (half the camera's frames, a third once you're still), and the camera turns off after 5 minutes without keyboard or mouse. Both can be switched off in Settings.
 - **Private.** Video is analysed in memory with Apple's Vision framework (720p, at most 15 frames a second) and discarded immediately. Nothing is recorded, uploaded or tracked. No accounts, no network access.
 
 ## Requirements
@@ -99,7 +100,7 @@ swift build && .build/debug/Headway --windows     # screens and windows as Headw
 .build/debug/Headway --evaluate              # how well the saved calibration aims, measured against your own clicks
 .build/debug/Headway --experiment            # compare aim-model variants against your clicks
 open ~/Applications/Headway.app --args --diagnose 10   # log 10 s of face numbers + CPU per stage to ~/Library/Logs/Headway/
-open -n --env HEADWAY_PROCESS_FPS=5 ~/Applications/Headway.app --args --diagnose 10   # same, analysing 5 frames a second
+open -n --env HEADWAY_EVERY_NTH=3 ~/Applications/Headway.app --args --diagnose 10   # same, analysing every 3rd frame
 defaults write com.irakli.headway debugReadings -bool YES   # per-frame readings → ~/Library/Logs/Headway/readings.jsonl
 scripts/release.sh                           # universal, ad-hoc-signed zip for the Releases page
 ```

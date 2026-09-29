@@ -9,6 +9,7 @@ enum TrackingStatus: Equatable {
     case needsCalibration
     case paused
     case asleep
+    case resting
     case calibrating
     case cameraProblem(String)
     case noFace
@@ -23,6 +24,7 @@ enum TrackingStatus: Equatable {
         case .needsCalibration: return "Needs calibration"
         case .paused: return "Paused"
         case .asleep: return "Resting while the Mac is locked"
+        case .resting: return "Camera off — no typing or mouse for 5 minutes"
         case .calibrating: return "Calibrating…"
         case .cameraProblem(let why): return "Camera problem: \(why)"
         case .noFace: return "Can't see your face"
@@ -54,6 +56,8 @@ final class Coordinator: ObservableObject {
     @Published private(set) var learnedClicks = 0
     @Published private(set) var axTrusted = AX.isTrusted
     @Published private(set) var cameraAuthorized = CameraService.authorization == .authorized
+    /// Camera off because nobody has typed or touched the mouse for a while.
+    @Published private(set) var resting = false
 
     private(set) var store: CalibrationStore
     private(set) var model: GazeModel?
@@ -70,6 +74,8 @@ final class Coordinator: ObservableObject {
     let system = SystemWatcher()
     private var smoother = SampleSmoother()
     private var accuracy = AccuracyTracker()
+    private var governor = FrameGovernor()
+    private var wakeMonitor: Any?
 
     /// While set, raw samples go here instead of the engine (calibration is running).
     var calibrationSink: ((FaceSample?) -> Void)?
@@ -129,6 +135,9 @@ final class Coordinator: ObservableObject {
     }
 
     private func housekeep() {
+        let rest = IdlePause.shouldRest(sinceKey: Activity.sinceKey, sinceMouse: Activity.sinceMouse, enabled: settings.idlePause)
+            && calibrationSink == nil && !previewRequested && !paused
+        if rest && !resting { startResting() }
         let ax = AX.isTrusted
         let cam = CameraService.authorization == .authorized
         if ax != axTrusted || cam != cameraAuthorized {
@@ -136,6 +145,29 @@ final class Coordinator: ObservableObject {
             cameraAuthorized = cam
             reconsiderCamera()
         }
+        updateStatus(force: true)
+    }
+
+    private func startResting() {
+        resting = true
+        Log.event("idle 5 min — camera off until the next key or mouse touch")
+        wakeMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.keyDown, .mouseMoved, .leftMouseDown, .rightMouseDown, .otherMouseDown, .scrollWheel]
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.wake() }
+        }
+        reconsiderCamera()
+        updateStatus(force: true)
+    }
+
+    private func wake() {
+        guard resting else { return }
+        resting = false
+        if let m = wakeMonitor { NSEvent.removeMonitor(m) }
+        wakeMonitor = nil
+        engine.reset()
+        Log.event("activity — camera back on")
+        reconsiderCamera()
         updateStatus(force: true)
     }
 
@@ -163,12 +195,13 @@ final class Coordinator: ObservableObject {
     /// The camera runs only while it has a job: tracking, calibrating, or the welcome window's face check.
     func reconsiderCamera() {
         let wanted = cameraAuthorized && !system.asleep
-            && (calibrationSink != nil || previewRequested || (!paused && model != nil && axTrusted))
+            && (calibrationSink != nil || previewRequested || (!paused && !resting && model != nil && axTrusted))
         if wanted && !camera.isRunning {
             do {
                 try camera.start(deviceID: settings.cameraID)
                 cameraError = nil
                 smoother.reset()
+                governor = FrameGovernor()
                 Log.event("camera on: \(camera.deviceName ?? "?")")
             } catch {
                 cameraError = "\(error)"
@@ -244,6 +277,7 @@ final class Coordinator: ObservableObject {
 
     private func frame(_ raw: FaceSample?) {
         if let sink = calibrationSink {
+            camera.everyNth = 1  // calibration wants every frame it can get
             sink(raw)
             setFaceVisible(raw != nil)
             return
@@ -258,8 +292,11 @@ final class Coordinator: ObservableObject {
         tracker.refresh(now: now, screens: screens, windows: windows, panes: panes)
 
         var reading: GazeReading?
+        var smoothed: FaceSample?
+        defer { camera.everyNth = governor.everyNth(after: smoothed, saver: settings.batterySaver) }
         if let raw {
             let s = smoother.smooth(raw)
+            smoothed = s
             lastSample = s
             reading = model.read(s, current: engine.facedScreen ?? tracker.focusScreen,
                                  threshold: settings.headTurn, hysteresis: HeadwaySettings.edgeHysteresis)
@@ -348,6 +385,7 @@ final class Coordinator: ObservableObject {
         if model == nil { return .needsCalibration }
         if paused { return .paused }
         if system.asleep { return .asleep }
+        if resting { return .resting }
         if let e = cameraError { return .cameraProblem(e) }
         if !camera.isRunning { return .starting }
         if !faceVisible { return .noFace }

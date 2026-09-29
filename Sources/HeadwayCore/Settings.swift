@@ -25,6 +25,10 @@ public struct HeadwaySettings: Codable, Equatable, Sendable {
     public var showGazeDot = false
     /// Camera unique ID; nil = built-in.
     public var cameraID: String?
+    /// Analyse half the camera's frames, and a third once head and eyes are still.
+    public var batterySaver = true
+    /// Camera off after 5 minutes with no keyboard or mouse; back on at the next touch.
+    public var idlePause = true
 
     /// While the mouse or trackpad is in use, and this long after, nothing moves (seconds).
     public static let mouseQuiet = 1.5
@@ -50,5 +54,7 @@ public struct HeadwaySettings: Codable, Equatable, Sendable {
         learnFromClicks = try c.decodeIfPresent(Bool.self, forKey: .learnFromClicks) ?? d.learnFromClicks
         showGazeDot = try c.decodeIfPresent(Bool.self, forKey: .showGazeDot) ?? d.showGazeDot
         cameraID = try c.decodeIfPresent(String.self, forKey: .cameraID)
+        batterySaver = try c.decodeIfPresent(Bool.self, forKey: .batterySaver) ?? d.batterySaver
+        idlePause = try c.decodeIfPresent(Bool.self, forKey: .idlePause) ?? d.idlePause
     }
 }

@@ -10,8 +10,15 @@ import Vision
 final class CameraService: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     /// `HEADWAY_FPS` overrides it for measurements.
     static let maxFPS = Double(ProcessInfo.processInfo.environment["HEADWAY_FPS"] ?? "") ?? 15.0
-    /// How many of those frames get analysed. `HEADWAY_PROCESS_FPS` overrides it for measurements.
-    static let processFPS = Double(ProcessInfo.processInfo.environment["HEADWAY_PROCESS_FPS"] ?? "") ?? maxFPS
+    /// Analyse every n-th frame (1 = all). Set from the main thread, read on the camera queue.
+    /// `HEADWAY_EVERY_NTH` sets the starting value for measurements.
+    var everyNth: Int {
+        get { lock.lock(); defer { lock.unlock() }; return _everyNth }
+        set { lock.lock(); _everyNth = max(1, newValue); lock.unlock() }
+    }
+    private var _everyNth = Int(ProcessInfo.processInfo.environment["HEADWAY_EVERY_NTH"] ?? "") ?? 1
+    private let lock = NSLock()
+    private var frameCounter = 0
     /// Frames the camera delivered, before Headway's own throttle (for `--diagnose`).
     private(set) var delivered = 0
 
@@ -125,8 +132,10 @@ final class CameraService: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
         let now = CACurrentMediaTime()
         delivered += 1
         // Also throttle here, for cameras that ignore the frame-rate request.
-        guard now - lastFrame >= 1 / Self.processFPS - 0.005, let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        guard now - lastFrame >= 1 / Self.maxFPS - 0.005 else { return }
         lastFrame = now
+        frameCounter += 1
+        guard frameCounter % everyNth == 0, let buffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         onSample?(analyzer.analyze(buffer, t: now))
     }
 }
