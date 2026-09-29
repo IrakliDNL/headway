@@ -10,7 +10,8 @@ public struct HeadwaySettings: Codable, Equatable, Sendable {
     public var focusWithinScreen = true
     /// Same screen: how long to look before a window or pane gets focus (seconds).
     public var paneDelay: Double = 0.30
-    /// While typing: keep focus where it is (panes stay put, screens switch after a beat).
+    /// While typing: panes of the same app stay put; other windows and screens take over only after a
+    /// longer look (`typingScreenDelay`).
     public var waitWhileTyping = true
     /// While typing: how long after the last keystroke to keep waiting (seconds).
     public var typingPause: Double = 3.0
@@ -27,7 +28,7 @@ public struct HeadwaySettings: Codable, Equatable, Sendable {
 
     /// While the mouse or trackpad is in use, and this long after, nothing moves (seconds).
     public static let mouseQuiet = 1.5
-    /// While typing, turning to another screen still switches — after this long (seconds).
+    /// While typing, looking at another screen or window still switches — after this long (seconds).
     public static let typingScreenDelay = 1.0
     /// Extra turn needed beyond the threshold, so looking at a bezel doesn't ping-pong.
     public static let edgeHysteresis = 0.06

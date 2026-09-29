@@ -40,7 +40,7 @@ struct SettingsView: View {
 
             Section("While typing") {
                 Toggle("Hold focus while typing", isOn: bind(\.waitWhileTyping))
-                Text("While you type, focus doesn't move within a screen. Turning to the other screen still switches, after about a second.")
+                Text("While you type, looking at another window or screen switches only after about a second, so quick glances don't steal your keystrokes. Split panes inside one app stay put until you stop typing.")
                     .font(.caption).foregroundStyle(.secondary)
                 slider("Typing hold", bind(\.typingPause), 0.5...10, 0.5, seconds,
                        "Counted from your last keystroke.")

@@ -12,7 +12,7 @@ With two or more screens, you look at one, start typing — and the keystrokes l
 
 - **Follows you between screens.** Turn to a screen and focus moves to the window you last used there (and, optionally, the pointer comes along).
 - **Doesn't twitch.** Quick glances are ignored (300 ms by default); there's a dead band at the gap between screens so looking at the bezel doesn't ping-pong; looking down at your phone or desk changes nothing.
-- **Never fights you.** While you use the mouse or trackpad, and for 1.5 s after, nothing moves. While you type, focus stays in the window you're typing in; turning to the other screen still switches, after about a second. Clicking somewhere yourself cancels anything pending.
+- **Never fights you.** While you use the mouse or trackpad, and for 1.5 s after, nothing moves. While you type, a quick glance elsewhere never steals your keystrokes: another window or screen takes over only after you've looked at it for about a second, and split panes inside one app stay put until you stop typing. Clicking somewhere yourself cancels anything pending.
 - **Windows and panes on the same screen.** Look at another window (or another editor group / terminal split in Cursor, VS Code, Xcode, iTerm2…) and it gets focus. Browsers, chat and document apps are always treated as whole windows.
 - **Gets better as you work.** You look where you click, so each click fine-tunes the model to how you actually sit.
 - **Private.** Video is analysed in memory with Apple's Vision framework (720p, at most 15 frames a second) and discarded immediately. Nothing is recorded, uploaded or tracked. No accounts, no network access.
@@ -56,7 +56,7 @@ Turn on **Show Gaze Dot** in the menu-bar eye: a dot shows where Headway thinks 
 |---|---|
 | Type on one screen, turn to the other and wait | Focus moves to the window you last used there within about a second |
 | Glance at the other screen for a split second | Nothing changes |
-| Keep typing while looking at the other screen | Focus follows only after about a second — never mid-word |
+| Keep typing while looking at the other screen or another window | Focus follows only after about a second — a quick glance changes nothing |
 | Use the mouse, then turn | Nothing moves until 1.5 s after the mouse stops |
 | Look down at your phone | Nothing changes; the menu-bar eye dims |
 | Look at the gap between the screens | No flip-flopping |
@@ -75,8 +75,8 @@ Menu-bar eye › **Settings…**: switch delay, turn threshold (50% = the gap be
 
 - **Camera → numbers** ([`Camera.swift`](Sources/Headway/Camera.swift)): Apple Vision gives head yaw/pitch and face landmarks; Headway derives where the nose sits within the face (head turn), where the pupils sit within the eyes (eye direction), and the face's position and size (posture, distance). Only these numbers are kept.
 - **Which screen** ([`GazeModel.swift`](Sources/HeadwayCore/GazeModel.swift)): the calibration samples form one cloud per screen. A linear discriminant finds the combination of measurements that best separates the screens, and progress along it runs from 0 (this screen's centre) to 1 (the other screen's centre), stretched so that 50% falls on the gap between the screens even when they're different sizes. Poses far from every screen are ignored.
-- **Where on the screen:** a regression per screen maps all measurements to a point, refined by each click.
-- **When to move** ([`FocusEngine.swift`](Sources/HeadwayCore/FocusEngine.swift)): reacts to *changes* in where you face, after the delay; never during mouse use; within a screen never while typing.
+- **Where on the screen:** a regression per screen maps head and eye measurements to a point, refitted after every click. Aim within a screen is the hard part for a webcam: on a 13" MacBook screen, calibration alone lands a median ~300 pt from where you actually click, falling to ~100 pt once it has learned from a few dozen clicks — enough to tell side-by-side windows apart, not small buttons.
+- **When to move** ([`FocusEngine.swift`](Sources/HeadwayCore/FocusEngine.swift)): reacts to *changes* in where you face or look, after the delay; never during mouse use; while typing only after a longer look, and never between panes of the same app.
 - **Moving focus** ([`Windows.swift`](Sources/Headway/Windows.swift), [`Panes.swift`](Sources/Headway/Panes.swift)): macOS Accessibility, plus the window-server call that window switchers such as AltTab use to bring a specific window forward. Panes are focused through their text input; see [`docs/pane-research.md`](docs/pane-research.md).
 
 The decision logic lives in a separate `HeadwayCore` module with no camera or UI code, and is covered by tests.
@@ -96,6 +96,8 @@ swift test                                   # decision-logic tests
 swift build && .build/debug/Headway --windows     # screens and windows as Headway sees them
 .build/debug/Headway --focus-test            # bounce focus between screens and verify (needs Accessibility for your terminal)
 .build/debug/Headway --panes                 # pane scan of every open window, with timings
+.build/debug/Headway --evaluate              # how well the saved calibration aims, measured against your own clicks
+.build/debug/Headway --experiment            # compare aim-model variants against your clicks
 open ~/Applications/Headway.app --args --diagnose 10   # log 10 s of face numbers to ~/Library/Logs/Headway/
 defaults write com.irakli.headway debugReadings -bool YES   # per-frame readings → ~/Library/Logs/Headway/readings.jsonl
 scripts/release.sh                           # universal, ad-hoc-signed zip for the Releases page

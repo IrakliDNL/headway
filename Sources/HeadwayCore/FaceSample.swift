@@ -50,7 +50,14 @@ public enum Features {
         [s.yaw, s.pitch, s.noseX, s.noseY, s.eyeX, s.eyeY]
     }
 
-    /// Everything, including where the face sits and how close it is. Places the point on a screen.
+    /// Places the point on a screen. Head and eyes only: where the face sits in the camera image changes
+    /// between calibration and everyday posture, and including it made the aim worse against real clicks
+    /// (median error on a 13" screen 400 → 300 pt before any click learning).
+    public static func point(_ s: FaceSample) -> [Double] {
+        head(s)
+    }
+
+    /// Everything, including where the face sits and how close it is.
     public static func full(_ s: FaceSample) -> [Double] {
         [s.yaw, s.pitch, s.noseX, s.noseY, s.eyeX, s.eyeY, s.faceX, s.faceY, s.faceW]
     }

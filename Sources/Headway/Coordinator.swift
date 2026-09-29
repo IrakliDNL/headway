@@ -77,7 +77,6 @@ final class Coordinator: ObservableObject {
     var previewRequested = false { didSet { reconsiderCamera() } }
 
     private var clickMonitor: Any?
-    private var clicksSinceRefit = 0
     private var ignoreClicksUntil = 0.0
     private var lastUIUpdate = 0.0
     private var lastDebugWrite = 0.0
@@ -322,14 +321,11 @@ final class Coordinator: ObservableObject {
         let u = (p.x - screen.frame.minX) / screen.frame.width
         let v = (p.y - screen.frame.minY) / screen.frame.height
         store.addClick(TrainingSample(face: sample, screen: screen.key, u: u, v: v, source: .click))
-        clicksSinceRefit += 1
-        if clicksSinceRefit >= 10 {
-            clicksSinceRefit = 0
-            // Refit in place; the engine keeps its state because the screens haven't changed.
-            model = GazeModel(samples: store.allSamples, screens: screens)
-            learnedClicks = store.clicks.count
-            saveStore()
-        }
+        // Refit on every click (well under a millisecond) so the aim improves from the very first click.
+        // The engine keeps its state because the screens haven't changed.
+        model = GazeModel(samples: store.allSamples, screens: screens)
+        learnedClicks = store.clicks.count
+        saveStore()
         let suggest = !store.movedScreens(current: screens).isEmpty || accuracy.suggestsRecalibration
         if suggest != suggestRecalibration {
             suggestRecalibration = suggest

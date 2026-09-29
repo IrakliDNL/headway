@@ -6,6 +6,14 @@ MainActor.assumeIsolated {
         SelfTest.windows()
         exit(0)
     }
+    if args.contains("--experiment") {
+        SelfTest.experiment()
+        exit(0)
+    }
+    if args.contains("--evaluate") {
+        SelfTest.evaluate()
+        exit(0)
+    }
     if args.contains("--panes") {
         SelfTest.panes()
         exit(0)

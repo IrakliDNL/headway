@@ -247,7 +247,7 @@ public struct GazeModel: Sendable {
         for key in head.keys {
             let own = usable.filter { $0.screen == key }
             if let r = RidgeRegression.fit(
-                x: own.map { Features.full($0.face) }, y: own.map { [$0.u, $0.v] },
+                x: own.map { Features.point($0.face) }, y: own.map { [$0.u, $0.v] },
                 weights: own.map(\.weight), lambda: 0.02
             ) {
                 within[key] = r
@@ -279,7 +279,7 @@ public struct GazeModel: Sendable {
         var point: CGPoint?
         if case .screen(let key) = r.choice, let screen = screens.first(where: { $0.key == key }),
            let model = within[key] {
-            let uv = model.predict(Features.full(face))
+            let uv = model.predict(Features.point(face))
             // Let the estimate run a little past the edges, but not wildly.
             let u = min(max(uv[0], -0.05), 1.05)
             let v = min(max(uv[1], -0.05), 1.05)

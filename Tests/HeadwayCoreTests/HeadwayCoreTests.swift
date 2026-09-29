@@ -156,13 +156,14 @@ let ignored = GazeReading(choice: .ignored, nearest: "laptop", progress: nil, fa
 final class FocusEngineTests: XCTestCase {
     /// Feeds the same reading at 15 fps for `seconds` and returns the actions produced.
     func run(_ e: FocusEngine, _ r: GazeReading?, from t0: Double, for seconds: Double, focus: String,
-             focusTarget: String? = nil, targets: [HitTarget] = [], sinceKey: (Double) -> Double = { _ in 100 },
+             focusWindow: String? = nil, focusTarget: String? = nil, targets: [HitTarget] = [],
+             sinceKey: (Double) -> Double = { _ in 100 },
              sinceMouse: (Double) -> Double = { _ in 100 }) -> [(Double, EngineAction)] {
         var out = [(Double, EngineAction)]()
         var t = t0
         while t < t0 + seconds - 1e-9 {
             let tick = EngineTick(t: t, reading: r, sinceKey: sinceKey(t), sinceMouse: sinceMouse(t),
-                                  focusScreen: focus, focusTarget: focusTarget, targets: targets)
+                                  focusScreen: focus, focusWindow: focusWindow, focusTarget: focusTarget, targets: targets)
             if let a = e.step(tick) { out.append((t, a)) }
             t += 1.0 / 15
         }
@@ -238,16 +239,40 @@ final class FocusEngineTests: XCTestCase {
         XCTAssertEqual(acts.map(\.1), [.focus(right)])
     }
 
+    // Two panes of one editor window (window 5).
+    let paneA = HitTarget(id: "w5:p0", rect: CGRect(x: 0, y: 0, width: 700, height: 900), kind: .pane, windowID: 5, pid: 12, paneIndex: 0)
+    let paneB = HitTarget(id: "w5:p1", rect: CGRect(x: 700, y: 0, width: 770, height: 900), kind: .pane, windowID: 5, pid: 12, paneIndex: 1)
+
     func testTypingKeepsPanesPut() {
         let e = FocusEngine()
         let p = CGPoint(x: 1000, y: 400)
-        let typingActs = run(e, reading("laptop", point: p), from: 0, for: 2, focus: "laptop", focusTarget: "w1",
-                             targets: [left, right], sinceKey: { $0 })
+        let typingActs = run(e, reading("laptop", point: p), from: 0, for: 2, focus: "laptop", focusWindow: "w5",
+                             focusTarget: "w5:p0", targets: [paneA, paneB], sinceKey: { $0 })
         XCTAssertTrue(typingActs.isEmpty)
-        // Stops typing at t=2 and keeps looking: after the 3 s typing pause focus follows.
-        let later = run(e, reading("laptop", point: p), from: 2, for: 3, focus: "laptop", focusTarget: "w1",
-                        targets: [left, right], sinceKey: { $0 - 2 + 1.9 })
-        XCTAssertEqual(later.map(\.1), [.focus(right)])
+        // Stops typing at t=2 and keeps looking: after the 3 s typing hold focus follows.
+        let later = run(e, reading("laptop", point: p), from: 2, for: 3, focus: "laptop", focusWindow: "w5",
+                        focusTarget: "w5:p0", targets: [paneA, paneB], sinceKey: { $0 - 2 + 1.9 })
+        XCTAssertEqual(later.map(\.1), [.focus(paneB)])
+    }
+
+    func testWhileTypingAnotherWindowTakesOverAfterALongerLook() {
+        let e = FocusEngine()
+        // Typing continuously in w1 while looking at w2: switches about 1 s after the look began.
+        let acts = run(e, reading("laptop", point: CGPoint(x: 1000, y: 400)), from: 0, for: 2, focus: "laptop",
+                       focusTarget: "w1", targets: [left, right], sinceKey: { _ in 0 })
+        XCTAssertEqual(acts.map(\.1), [.focus(right)])
+        XCTAssertEqual(acts[0].0, 1.0, accuracy: 0.07)
+    }
+
+    func testWhileTypingAGlanceAtAnotherWindowDoesNotSteal() {
+        let e = FocusEngine()
+        _ = run(e, reading("laptop", point: CGPoint(x: 300, y: 400)), from: 0, for: 1, focus: "laptop",
+                focusTarget: "w1", targets: [left, right], sinceKey: { _ in 0 })
+        var acts = run(e, reading("laptop", point: CGPoint(x: 1000, y: 400)), from: 1, for: 0.7, focus: "laptop",
+                       focusTarget: "w1", targets: [left, right], sinceKey: { _ in 0 })
+        acts += run(e, reading("laptop", point: CGPoint(x: 300, y: 400)), from: 1.7, for: 1, focus: "laptop",
+                    focusTarget: "w1", targets: [left, right], sinceKey: { _ in 0 })
+        XCTAssertTrue(acts.isEmpty)
     }
 
     func testWithinScreenCanBeTurnedOff() {

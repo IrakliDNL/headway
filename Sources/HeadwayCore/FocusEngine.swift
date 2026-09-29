@@ -89,6 +89,8 @@ public final class FocusEngine {
     private var pendingScreen: String?
     private var targetCandidate: (id: String?, since: Double)?
     private var pendingTarget: HitTarget?
+    /// When your gaze arrived on `gazedTarget`.
+    private var gazedSince = 0.0
     private var lastFocusScreen: String?
     private var lastFocusWindow: String?
     private var lastFocusTarget: String?
@@ -176,6 +178,7 @@ public final class FocusEngine {
             if targetCandidate == nil || targetCandidate!.id != hit?.id { targetCandidate = (hit?.id, tick.t) }
             if tick.t - targetCandidate!.since >= settings.paneDelay {
                 gazedTarget = hit?.id
+                gazedSince = targetCandidate!.since
                 targetCandidate = nil
                 pendingTarget = (hit != nil && hit!.id != tick.focusTarget) ? hit : nil
             }
@@ -183,7 +186,16 @@ public final class FocusEngine {
         if let pt = pendingTarget {
             if pt.id != gazedTarget || pt.id == tick.focusTarget {
                 pendingTarget = nil
-            } else if typing || mouseBusy {
+            } else if mouseBusy {
+                waiting = true
+            } else if typing {
+                // While typing, another pane of the same app stays put (you're reading it). Another window
+                // takes over after a longer, deliberate look — the same beat as turning to another screen.
+                let otherWindow = "w\(pt.windowID)" != tick.focusWindow
+                if otherWindow && tick.t - gazedSince >= HeadwaySettings.typingScreenDelay {
+                    pendingTarget = nil
+                    return .focus(pt)
+                }
                 waiting = true
             } else {
                 pendingTarget = nil

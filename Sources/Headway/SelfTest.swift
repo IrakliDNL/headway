@@ -114,6 +114,97 @@ enum SelfTest {
         snap(cal, "calibration-dot")
     }
 
+    /// How well does the saved calibration aim *within* each screen? Uses the user's real clicks as ground
+    /// truth (you look where you click), plus leave-one-dot-out on the calibration itself.
+    static func evaluate() {
+        let store = Storage.loadStore()
+        let screens = Displays.current().map(\.geometry)
+        func report(_ name: String, _ pairs: [(pu: Double, pv: Double, u: Double, v: Double)], _ screen: ScreenGeometry) {
+            guard !pairs.isEmpty else { return }
+            let eu = pairs.map { abs($0.pu - $0.u) }.sorted(), ev = pairs.map { abs($0.pv - $0.v) }.sorted()
+            let med = { (a: [Double]) in a[a.count / 2] }
+            let halves = pairs.filter { ($0.pu < 0.5) == ($0.u < 0.5) }.count
+            print(String(format: "  %@: n=%d  median error x %.0f pt (%.0f%%), y %.0f pt (%.0f%%); left/right half right %d%%",
+                         name, pairs.count, med(eu) * screen.frame.width, med(eu) * 100, med(ev) * screen.frame.height,
+                         med(ev) * 100, halves * 100 / pairs.count))
+        }
+        for screen in screens {
+            let cal = store.samples.filter { $0.screen == screen.key }
+            let clicks = store.clicks.filter { $0.screen == screen.key }
+            guard !cal.isEmpty else { continue }
+            print("\(screen.name): \(cal.count) calibration samples, \(clicks.count) clicks")
+            // 1. Calibration only → predict clicks.
+            if let m = GazeModel(samples: store.samples, screens: screens), let r = m.within[screen.key] {
+                report("calibration → clicks", clicks.map { let p = r.predict(Features.point($0.face)); return (p[0], p[1], $0.u, $0.v) }, screen)
+            }
+            // 2. Leave one calibration dot out.
+            var loo = [(pu: Double, pv: Double, u: Double, v: Double)]()
+            let spots = Set(cal.map { "\($0.u),\($0.v)" })
+            for spot in spots {
+                let train = store.samples.filter { "\($0.u),\($0.v)" != spot || $0.screen != screen.key }
+                guard let m = GazeModel(samples: train, screens: screens), let r = m.within[screen.key] else { continue }
+                for s in cal where "\(s.u),\(s.v)" == spot {
+                    let p = r.predict(Features.point(s.face))
+                    loo.append((p[0], p[1], s.u, s.v))
+                }
+            }
+            report("leave-one-dot-out", loo, screen)
+            // 3. Calibration + other clicks → each click (what click learning buys).
+            var cv = [(pu: Double, pv: Double, u: Double, v: Double)]()
+            for (i, c) in clicks.enumerated() {
+                let others = clicks.enumerated().filter { $0.offset != i }.map(\.element)
+                guard let m = GazeModel(samples: store.samples + others + store.clicks.filter { $0.screen != screen.key }, screens: screens),
+                      let r = m.within[screen.key] else { continue }
+                let p = r.predict(Features.point(c.face))
+                cv.append((p[0], p[1], c.u, c.v))
+            }
+            report("with click learning", cv, screen)
+        }
+    }
+
+    /// Compares within-screen model variants against the user's clicks.
+    static func experiment() {
+        let store = Storage.loadStore()
+        let screens = Displays.current().map(\.geometry)
+        typealias Extract = (FaceSample) -> [Double]
+        let sets: [(String, Extract)] = [
+            ("full9", Features.full),
+            ("head4", { [$0.yaw, $0.pitch, $0.noseX, $0.noseY] }),
+            ("head+eyes6", Features.head),
+            ("head+pos7", { [$0.yaw, $0.pitch, $0.noseX, $0.noseY, $0.faceX, $0.faceY, $0.faceW] }),
+            ("yaw/nose/eyeX (x only)", { [$0.yaw, $0.noseX, $0.eyeX, $0.faceX] }),
+        ]
+        for screen in screens {
+            let cal = store.samples.filter { $0.screen == screen.key }
+            let clicks = store.clicks.filter { $0.screen == screen.key }
+            guard !cal.isEmpty, !clicks.isEmpty else { continue }
+            print("\n\(screen.name) (\(clicks.count) clicks; x error in points, median · 75th pct; halves = clicks clearly on one side)")
+            for (name, f) in sets {
+                for lambda in [0.02, 0.1, 0.3, 1.0] {
+                    func errs(_ train: [TrainingSample], _ test: [TrainingSample]) -> [(Double, Double)] {
+                        guard let r = RidgeRegression.fit(x: train.map { f($0.face) }, y: train.map { [$0.u] },
+                                                          weights: train.map { $0.source == .click ? 2 : 1 }, lambda: lambda)
+                        else { return [] }
+                        return test.map { (r.predict(f($0.face))[0], $0.u) }
+                    }
+                    let a = errs(cal, clicks)
+                    var b = [(Double, Double)]()
+                    for (i, c) in clicks.enumerated() {
+                        b += errs(cal + clicks.enumerated().filter { $0.offset != i }.map(\.element), [c])
+                    }
+                    func summary(_ p: [(Double, Double)]) -> String {
+                        let e = p.map { abs($0.0 - $0.1) * screen.frame.width }.sorted()
+                        let clear = p.filter { abs($0.1 - 0.5) > 0.12 }
+                        let halves = clear.filter { ($0.0 < 0.5) == ($0.1 < 0.5) }.count
+                        return String(format: "%4.0f · %4.0f pt, halves %3d%%", e[e.count / 2], e[e.count * 3 / 4],
+                                      clear.isEmpty ? 0 : halves * 100 / clear.count)
+                    }
+                    print(String(format: "  %-24@ λ=%-4.2f  calib only: %@   + clicks: %@", name as NSString, lambda, summary(a), summary(b)))
+                }
+            }
+        }
+    }
+
     static func diagnose(seconds: Double) {
         let url = Storage.logs.appendingPathComponent("diagnose-\(Int(Date().timeIntervalSince1970)).jsonl")
         FileManager.default.createFile(atPath: url.path, contents: nil)
