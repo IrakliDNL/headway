@@ -59,7 +59,9 @@ struct SettingsView: View {
                 }
             }
 
-            Section("Battery") {
+            Section("Power saving") {
+                Text("Power Saving in the menu-bar eye switches both of these at once.")
+                    .font(.caption).foregroundStyle(.secondary)
                 Toggle("Battery saver", isOn: bind(\.batterySaver))
                 Text("Analyses 7.5 camera frames a second, and 5 once your head and eyes are still; back up the moment you move. About a third less energy; switches can come up to 0.2 s later.")
                     .font(.caption).foregroundStyle(.secondary)

@@ -77,6 +77,16 @@ final class StatusMenu: NSObject, NSMenuDelegate {
         dot.state = c.settings.showGazeDot ? .on : .off
         menu.addItem(dot)
 
+        // One switch for both savers; Settings › Power Saving has them separately (– = only one is on).
+        let s = c.settings
+        let saving = action("Power Saving") { [c] in
+            let on = !(s.batterySaver && s.idlePause)
+            c.update { $0.batterySaver = on; $0.idlePause = on }
+        }
+        saving.state = s.batterySaver && s.idlePause ? .on : (s.batterySaver || s.idlePause ? .mixed : .off)
+        saving.toolTip = "Analyses fewer camera frames, and turns the camera off after 5 minutes away."
+        menu.addItem(saving)
+
         menu.addItem(action("Recalibrate…") { [app] in app.calibrate() })
         let settings = action("Settings…") { [app] in app.showSettings() }
         settings.keyEquivalent = ","

@@ -15,7 +15,7 @@ With two or more screens, you look at one, start typing — and the keystrokes l
 - **Never fights you.** While you use the mouse or trackpad, and for 1.5 s after, nothing moves. While you type, a quick glance elsewhere never steals your keystrokes: another window or screen takes over only after you've looked at it for about a second, and split panes inside one app stay put until you stop typing. Clicking somewhere yourself cancels anything pending.
 - **Windows and panes on the same screen.** Look at another window (or another editor group / terminal split in Cursor, VS Code, Xcode, iTerm2…) and it gets focus. Browsers, chat and document apps are always treated as whole windows.
 - **Gets better as you work.** You look where you click, so each click fine-tunes the model to how you actually sit.
-- **Easy on the battery.** About 17–19% of one CPU core while tracking on an M4 MacBook Air (half the camera's frames, a third once you're still), and the camera turns off after 5 minutes without keyboard or mouse. Both can be switched off in Settings.
+- **Easy on the battery.** About 17–19% of one CPU core while tracking on an M4 MacBook Air (half the camera's frames, a third once you're still), and the camera turns off after 5 minutes without keyboard or mouse. Switch it on or off with **Power Saving** in the menu-bar eye, or each part separately in Settings.
 - **Private.** Video is analysed in memory with Apple's Vision framework (720p, at most 15 frames a second) and discarded immediately. Nothing is recorded, uploaded or tracked. No accounts, no network access.
 
 ## Requirements
@@ -68,7 +68,7 @@ Turn on **Show Gaze Dot** in the menu-bar eye: a dot shows where Headway thinks 
 
 ## Settings
 
-Menu-bar eye › **Settings…**: switch delay, turn threshold (50% = the gap between your screens), same-screen window/pane focus and its delay, hold focus while typing and for how long, bring the pointer along, learn from clicks, click fallback for panes, camera, gaze dot, pause shortcut (⇧⌘G, ⌃⌥⌘G or none — note ⇧⌘G is also Finder's *Go to Folder*), open at login.
+Menu-bar eye › **Settings…**: switch delay, turn threshold (50% = the gap between your screens), same-screen window/pane focus and its delay, hold focus while typing and for how long, bring the pointer along, learn from clicks, click fallback for panes, power saving (fewer frames analysed; camera off when you're away), camera, gaze dot, pause shortcut (⇧⌘G, ⌃⌥⌘G or none — note ⇧⌘G is also Finder's *Go to Folder*), open at login.
 
 **Cursor / VS Code users:** to see split panes Headway switches on the app's accessibility tree. The app may then offer "Screen Reader Optimized" mode — choose *No*, or set `"editor.accessibilitySupport": "off"` in its settings.
 
