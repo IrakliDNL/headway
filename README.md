@@ -26,7 +26,9 @@ With two or more screens, you look at one, start typing — and the keystrokes l
 
 ## Install
 
-**Download:** a ready-to-run app will be on the [Releases](../../releases) page soon. It isn't notarized by Apple, so the first time macOS will say it can't verify the developer: click **Done**, then open **System Settings › Privacy & Security** and click **Open Anyway** next to Headway.
+**Download:** get `Headway-<version>.zip` from the [latest release](https://github.com/IrakliDNL/headway/releases/latest), unzip it and drag **Headway** into your **Applications** folder, then open it.
+
+It isn't notarized by Apple (that needs a paid developer account), so the first time macOS will say it can't verify the developer: click **Done**, then open **System Settings › Privacy & Security**, scroll down and click **Open Anyway** next to Headway. You only do this once per version. After updating to a new version, macOS may ask for the camera again, and under *Accessibility* you may need to remove Headway with **–** and switch it on again (the menu-bar eye tells you if so).
 
 **Build from source** (Xcode 15.3 or later):
 
